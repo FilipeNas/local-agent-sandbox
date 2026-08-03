@@ -1,0 +1,101 @@
+schemaVersion: "1"
+kind: sandbox
+name: filipe-local-agent-sandbox
+displayName: Filipe local agent sandbox
+description: Filipe local agent sandbox
+
+sandbox:
+  image: "docker/sandbox-templates:claude-code-docker-nightly"
+  aiFilename: CLAUDE.md
+  entrypoint:
+    run: ["claude", "--dangerously-skip-permissions"]
+
+caps:
+  network:
+    allow:
+      - "**"
+
+environment:
+  variables:
+    IS_SANDBOX: "1"
+    HOMEBREW_NO_AUTO_UPDATE: "1"
+    HOMEBREW_NO_ANALYTICS: "1"
+    HOMEBREW_NO_ENV_HINTS: "1"
+
+commands:
+  install:
+    - description: Base packages and zsh
+      command: >-
+        DEBIAN_FRONTEND=noninteractive apt-get update &&
+        apt upgrade -y && apt-get install -y --no-install-recommends
+        zsh build-essential procps curl file git
+
+    - description: Install Homebrew
+      command: 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+      user: "1000"
+
+    - description: Put brew on PATH for all shells
+      command: "echo 'eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> /etc/sandbox-persistent.sh"
+
+    - description: Make zsh the login shell for agent
+      command: "chsh -s /usr/bin/zsh agent"
+
+    - description: Install tools via brew
+      command: >-
+        HOMEBREW_NO_AUTO_UPDATE=1 /home/linuxbrew/.linuxbrew/bin/brew install
+        awscli awscurl awsdac docker-credential-helper-ecr fzf git-lfs helm ipcalc jq
+        krew kubecolor kube-ps1 kubectx kubernetes-cli kustomize mysql-client nano
+        opentofu pgcli ripgrep stern terraform-docs terragrunt
+        terraform-linters/tap/tflint websocat yq zoxide
+        zsh-autosuggestions zsh-syntax-highlighting
+      user: "1000"
+
+    - description: Install Python tools with uv
+      command: |
+        for tool in isort ruff pre-commit; do
+          uv tool install "$tool" || echo "FAILED: $tool"
+        done
+      user: "1000"
+
+    - description: PATH for keg-only mysql-client, krew, and uv tools
+      command: |
+        cat >> /etc/sandbox-persistent.sh <<'PATHEOF'
+        export PATH="/home/linuxbrew/.linuxbrew/opt/mysql-client/bin:$PATH"
+        export PATH="$HOME/.krew/bin:$PATH"
+        export PATH="$HOME/.local/bin:$PATH"
+        PATHEOF
+
+    # Reclaim downloaded bottles; keeps the VM disk smaller.
+    - description: Clean brew cache
+      command: "/home/linuxbrew/.linuxbrew/bin/brew cleanup -s || true"
+      user: "1000"
+
+agentContext: |
+  ## Environment
+
+  You are running inside a Docker Sandbox microVM (Ubuntu 26.04, arm64), not on
+  the host. The workspace is a bind mount of a real host directory: edits and
+  deletions here affect actual files on the developer's machine. Everything
+  outside the workspace is VM-local and disappears when the sandbox is removed.
+
+  The network policy is open — all outbound HTTP/HTTPS is permitted and nothing
+  is filtered. Note that UDP and ICMP are blocked at the network layer, so
+  `ping` and DNS-over-UDP diagnostics will not work; use `curl` to test connectivity.
+
+  `sudo` is available without a password. Prefer `brew` for user-space tools and
+  `apt-get` only for system packages.
+
+  ## Tooling
+
+  - Kubernetes: kubectl (aliased through kubecolor interactively), kubectx,
+    krew, kustomize, helm, stern
+  - IaC: opentofu (`tofu`), terragrunt, terraform-docs, tflint
+  - AWS: awscli, awscurl, awsdac, docker-credential-helper-ecr
+  - Data: pgcli, mysql client
+  - Shell: ripgrep, jq, yq, fzf, zoxide, nmap, ipcalc, websocat
+  - Python: ruff, isort, pre-commit (managed by uv, not pip — use
+    `uv tool install <pkg>` to add more)
+
+  Homebrew lives at /home/linuxbrew/.linuxbrew. PATH additions belong in
+  /etc/sandbox-persistent.sh, which is sourced by every bash invocation and by
+  zsh via ~/.zshenv — that file is why your Bash tool calls resolve these tools.
