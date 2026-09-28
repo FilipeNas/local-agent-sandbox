@@ -68,16 +68,9 @@ capabilities:
             except Exception:
                 d = {}
             ws = os.environ.get("WORKSPACE_DIR") or "/workspace"
-            dirs = []
-            cur = ws
-            while cur and cur != "/":
-                dirs.append(cur)
-                cur = os.path.dirname(cur)
-            dirs.append("/")
             trusted = d.get("trustedWorkspaces", [])
-            for pth in dirs:
-                if pth not in trusted:
-                    trusted.append(pth)
+            if ws and ws not in trusted:
+                trusted.append(ws)
             d["trustedWorkspaces"] = trusted
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "w") as f:
