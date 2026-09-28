@@ -1,0 +1,29 @@
+{
+  "colorScheme": "terminal",
+  "hasCompletedOnboarding": true,
+  "onboardingComplete": true,
+  "consumerOnboardingComplete": true,
+  "enterpriseOnboardingComplete": true,
+  "terms": {
+    "accepted": true
+  },
+  "toolPermission": "always-proceed",
+  "toolExecutionPolicy": "always-proceed",
+  "artifactReviewPolicy": "always-proceed",
+  "artifactReviewMode": "always-proceed",
+  "allowNonWorkspaceAccess": true,
+  "fileAccessPolicy": "allow",
+  "internetAccessPolicy": "allow",
+  "nonWorkspaceFileAccess": "allow",
+  "agentMode": "accept-edits",
+  "permissions": {
+    "allow": [
+      "command(*)",
+      "execute_url(*)",
+      "mcp(*)",
+      "read_file(*)",
+      "read_url(*)",
+      "write_file(*)"
+    ]
+  }
+}
