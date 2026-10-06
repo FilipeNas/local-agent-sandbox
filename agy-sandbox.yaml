@@ -1,8 +1,8 @@
 # syntax=docker/sandbox-kit:3
 schemaVersion: '3'
-displayName: Antigravity local agent sandbox
-description: Local agent sandbox running Antigravity
-author: Filipe Nascimento <filipe.nascimento@gmail.com>
+displayName: agy-sandbox
+description: Docker Sandbox for Google Antigravity CLI (agy)
+author: Filipe Nascimento <piposantos1@hotmail.com>
 
 kind: workload
 version: 0.1.0
@@ -68,7 +68,7 @@ capabilities:
             except Exception:
                 d = {}
             ws = os.environ.get("WORKSPACE_DIR") or "/workspace"
-            trusted = d.get("trustedWorkspaces", [])
+            trusted = d.get("trustedWorkspaces", [])  
             if ws and ws not in trusted:
                 trusted.append(ws)
             d["trustedWorkspaces"] = trusted

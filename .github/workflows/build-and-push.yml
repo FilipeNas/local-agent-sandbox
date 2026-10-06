@@ -1,9 +1,10 @@
 name: build-and-push
 
-# Keeps ghcr.io/filipenas/local-agent-sandbox:latest current.
-# Triggers: every push to main, a nightly cron, or manual dispatch.
-# Delegates the actual build to the reusable _build.yml (single source of truth),
-# which overwrites the :latest tag each run.
+# Keeps ghcr.io/filipenas/agy-sandbox:latest and :nightly current.
+# Triggers:
+# - schedule (nightly at 03:00 UTC): tags 'nightly,latest'
+# - push to main / manual dispatch: tags 'latest'
+# Delegates the actual build to the reusable _build.yml (single source of truth).
 
 on:
   push:
@@ -17,8 +18,8 @@ permissions:
   packages: write
 
 jobs:
-  latest:
+  build:
     uses: ./.github/workflows/_build.yml
     with:
-      tags: latest
+      tags: ${{ github.event_name == 'schedule' && 'nightly,latest' || 'latest' }}
     secrets: inherit

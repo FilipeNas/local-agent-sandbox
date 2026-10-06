@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Prebuilt image for the local agent sandbox kit.
+# Prebuilt image for the agy-sandbox kit.
 # All tools are baked directly into the image so sandboxes start up instantly.
 #
 # Build architecture:
@@ -20,11 +20,10 @@ FROM ${BASE} AS system
 USER root
 # System dependencies:
 # - build-essential, procps, curl, file, git: required prerequisites to install Homebrew
-# - iputils-ping: provides the 'ping' command
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
  && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends \
-      build-essential procps curl file git iputils-ping
+      build-essential procps curl file git
 
 # Evaluated by interactive shells and non-interactive subshells via $BASH_ENV
 RUN cat > /etc/sandbox-persistent.sh <<'EOF'
@@ -46,7 +45,7 @@ RUN --mount=type=cache,id=homebrew-${TARGETARCH},target=/home/agent/.cache/Homeb
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 RUN --mount=type=cache,id=homebrew-${TARGETARCH},target=/home/agent/.cache/Homebrew,uid=1000,gid=1000 \
     brew install \
-      awscli awscurl awsdac docker-credential-helper-ecr fzf git-lfs helm ipcalc jq \
+      awscli awscurl awsdac docker-credential-helper-ecr fzf gh git-lfs helm ipcalc jq \
       krew kubecolor kubectx kubernetes-cli kustomize mysql-client nano nmap \
       opentofu pgcli ripgrep stern terraform-docs terragrunt \
       terraform-linters/tap/tflint uv websocat yq zoxide

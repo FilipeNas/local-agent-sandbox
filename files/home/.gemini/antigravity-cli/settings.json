@@ -1,6 +1,5 @@
 {
   "colorScheme": "terminal",
-  "hasCompletedOnboarding": true,
   "onboardingComplete": true,
   "consumerOnboardingComplete": true,
   "enterpriseOnboardingComplete": true,
@@ -8,13 +7,8 @@
     "accepted": true
   },
   "toolPermission": "always-proceed",
-  "toolExecutionPolicy": "always-proceed",
   "artifactReviewPolicy": "always-proceed",
-  "artifactReviewMode": "always-proceed",
   "allowNonWorkspaceAccess": true,
-  "fileAccessPolicy": "allow",
-  "internetAccessPolicy": "allow",
-  "nonWorkspaceFileAccess": "allow",
   "agentMode": "accept-edits",
   "permissions": {
     "allow": [

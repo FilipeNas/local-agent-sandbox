@@ -4,8 +4,8 @@ name: _build
 # multi-arch image AND the kit OCI artifact to GHCR. build-and-push.yml
 # (main/nightly) and release.yml (dated) call this via `workflow_call`.
 #
-#   image:  ghcr.io/filipenas/local-agent-sandbox
-#   kit:    ghcr.io/filipenas/local-agent-sandbox-kit
+#   image:  ghcr.io/filipenas/agy-sandbox
+#   kit:    ghcr.io/filipenas/agy-sandbox-kit
 #
 # Every tag in `inputs.tags` (comma-separated) is applied to both, overwriting.
 # The image builds on each arch's OWN native runner (no QEMU); a merge job
@@ -27,8 +27,8 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/filipenas/local-agent-sandbox
-  KIT: ghcr.io/filipenas/local-agent-sandbox-kit
+  IMAGE: ghcr.io/filipenas/agy-sandbox
+  KIT: ghcr.io/filipenas/agy-sandbox-kit
 
 jobs:
   build:
@@ -62,7 +62,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: local-agent-sandbox.yaml
+          file: agy-sandbox.yaml
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ steps.plat.outputs.name }}

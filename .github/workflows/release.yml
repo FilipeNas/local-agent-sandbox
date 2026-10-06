@@ -20,8 +20,8 @@ permissions:
   packages: write # push image + kit to GHCR
 
 env:
-  IMAGE: ghcr.io/filipenas/local-agent-sandbox
-  KIT: ghcr.io/filipenas/local-agent-sandbox-kit
+  IMAGE: ghcr.io/filipenas/agy-sandbox
+  KIT: ghcr.io/filipenas/agy-sandbox-kit
 
 jobs:
   version:

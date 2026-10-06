@@ -1,155 +1,173 @@
-# local-agent-sandbox
+# agy-sandbox
 
-My ready-to-run [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) kit for
-coding agents. It boots an isolated microVM running Google's **Antigravity CLI (`agy`)**
-with a full DevOps toolbelt — `kubectl`, `opentofu`, `terragrunt`, AWS CLI, `pgcli`,
-`ripgrep`, `uv`, and more — already baked into the image, so a sandbox starts in seconds
-instead of installing tools at boot.
+A ready-to-run [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) kit for Google's **Antigravity CLI (`agy`)**.
 
-## Layout
+It boots an isolated, hardware-virtualized microVM pre-configured with `agy` and a full DevOps toolbelt. Everything is pre-baked into the image so sandboxes start in seconds.
 
-- `local-agent-sandbox.yaml` — the kit descriptor (v3 workload): declares capabilities (network policy, Google OAuth proxy, agent instructions, and lifecycle hook to seed permissive Antigravity settings).
-- `context.md` — agent instructions authored for the kit, staged and loaded by Docker Sandboxes into the sandbox as `AGENTS.md`.
-- `local-agent-sandbox.dockerfile` — the workload image recipe: Ubuntu 26.04 (`shell-docker`) + apt packages + Homebrew CLIs + uv Python tools + Antigravity CLI (`agy`) + dotfiles + entrypoint.
-- `run.sh` — convenience script to launch the sandbox via `sbx run`.
-- `files/home/` — dotfiles baked into the image: interactive bash config.
-- `.github/workflows/` — CI (builds multi-arch v3 kit image).
+> [!NOTE]
+> This project is heavily inspired by Oleg Šelajev's [agy-sbx-kit](https://github.com/shelajev/agy-sbx-kit).
 
-## How it works
+---
 
-- **Bake-first approach**: Tools, configurations, and `agy` are baked in at build time; a sandbox starts in seconds.
-- **Kit v3 OCI Image**: In Docker Sandboxes v3 (`sbx` >= 0.45), the kit *is* the container image itself. The YAML descriptor is validated by BuildKit (`# syntax=docker/sandbox-kit:3`) and embedded as an OCI manifest annotation.
-- **Authentication**: Managed by Docker Sandboxes' host credential proxy. On the first run, `agy` switches to remote headless OAuth (`SSH_CONNECTION` forced) and prints a Google login URL. Sign in via your browser and paste back the callback URL. The host credential proxy securely manages tokens so subsequent sandboxes boot already authenticated.
-- `:latest` is rebuilt on every push to `main` and nightly.
-- A release tags the image by day — `2026-08-04.1`, `.2`, … — and also moves `:latest`.
+## How It Works
 
-Names:
+- **Bake-First Architecture**: All tools, runtimes, and shell configurations are baked into the container image at build time for instant startup.
+- **Docker Sandboxes Kit v3**: Uses the [Sandbox Kit v3 Spec](https://github.com/docker/sandbox-kit-spec) (`# syntax=docker/sandbox-kit:3`). The descriptor (`agy-sandbox.yaml`) configures network policies, OAuth proxying, agent instructions, and lifecycle hooks embedded directly into the OCI image.
+- **Host-Managed OAuth Storage**:
+  - Google OAuth tokens are **stored on your host machine** in the Docker Sandboxes credential store (`sbx`), **not** inside the ephemeral container session.
+  - The sandbox only holds proxy sentinel placeholders (`agy-oauth-access-proxy-managed`). The host proxy intercepts outbound requests to Google AI APIs and injects the cached token.
+- **Agent Context**: [`context.md`](context.md) is automatically injected as `AGENTS.md` inside the sandbox to guide agent behavior.
 
-- Image / Kit: `ghcr.io/filipenas/local-agent-sandbox` (also tagged `local-agent-sandbox-kit` for backwards compatibility)
+---
 
-## Install sbx
+## Prerequisites & Setup
 
-macOS 14+ on Apple silicon or Linux — see the [Docker docs](https://docs.docker.com/ai/sandboxes/get-started/).
+### 1. Install Docker Sandboxes CLI (`sbx`)
+Follow the official Docker guide to install `sbx` on your system:  
+**[Docker Sandboxes Installation Guide](https://docs.docker.com/ai/sandboxes/install/)**
 
+### 2. Log In to Docker Sandboxes
+Authenticate your CLI (required before creating or running sandboxes):
 ```bash
-brew trust docker/tap
-brew install docker/tap/sbx
 sbx login
 ```
 
-## Setup (once)
-
+### 3. Optional Settings
 ```bash
-# GitHub login with the scopes CI + GHCR need
-gh auth login --git-protocol https --scopes "repo,workflow,read:packages,write:packages"
+# Enable experimental platform features and UDP egress
+sbx settings set platform.allowExperimentalFeatures true
+sbx settings set feature.udp-egress true
 
-# Docker → GHCR (push/pull images and kits)
-gh auth token | docker login ghcr.io -u FilipeNas --password-stdin
+# Allocate more disk space for the sandbox Docker volume (e.g. 20GB)
+sbx settings set sandbox.disk.dockerVolume 20g
 
-# sbx pull creds for GHCR (pull the private image + kit when creating a sandbox)
-gh auth token | sbx secret set --registry ghcr.io --username FilipeNas --password-stdin
+# Restart Docker sbx daemon to apply the new settings
+sbx daemon restart
 
-# Give sbx your GitHub token (global service secret)
-sbx secret set -f -g github -t "$(gh auth token)"
-
-# Allow kits only from these sources: base images (docker.io), kits pulled from
-# your GitHub repos (git), and kits published to your GHCR namespace (OCI).
-sbx settings set kit.allowedSources '["docker.io/","github.com/FilipeNas/","ghcr.io/filipenas/"]'
-
-# SSH access to sandboxes — needed for VS Code / Cursor Remote-SSH.
-# Writes ~/.ssh/config so `ssh <name>.sbx` connects (idempotent).
+# Configure SSH access for terminal and VS Code / Cursor Remote-SSH (ssh <name>.sbx)
 sbx setup ssh
 ```
 
-After `sbx setup ssh`, connect to a running sandbox two ways:
+---
 
-- **Terminal:** `ssh filipe-sbx.sbx`
-- **VS Code / Cursor:** install the **Remote - SSH** extension and connect to host
-  `filipe-sbx.sbx`.
+## Quick Start (Run from GitHub Registry)
 
-## Run
+### 1. Authenticate with GitHub Container Registry (GHCR)
+If pulling the pre-built kit from GHCR:
+```bash
+# Log in via GitHub CLI
+gh auth login --scopes "read:packages"
 
-### First Run (OAuth Sign-In)
+# Allow sbx to pull kits from GHCR
+gh auth token | docker login ghcr.io -u <your-github-username> --password-stdin
+gh auth token | sbx secret set --registry ghcr.io --username <your-github-username> --password-stdin
 
-On the first start, Docker Sandboxes prompts you to approve the `antigravity` OAuth credential binding. `agy` then displays a Google sign-in URL:
-1. Open the URL in your browser, sign in with your Google account, and grant access.
-2. The browser redirects to `http://localhost:36742/oauth-callback?code=...` (which won't load in your browser; this is expected).
-3. Copy the full redirect URL from the address bar and paste it into the sandbox terminal prompt.
-4. Docker Sandboxes captures and stores the OAuth session on the host. Future sandboxes start already authenticated!
+# Allow kits from GHCR
+sbx settings set kit.allowedSources '["docker.io/","ghcr.io/filipenas/"]'
+```
 
-### Published kit (normal use)
+### 2. Run a Sandbox
+Mount a local project directory into the sandbox as a writable workspace:
 
 ```bash
-# Antigravity CLI (agy)
-# First path is the writable workspace; add more, ':ro' = read-only.
-sbx run ghcr.io/filipenas/local-agent-sandbox-kit:latest \
-  --name filipe-sbx \
-  ~/code/app ~/code/docs:ro
+sbx run ghcr.io/filipenas/agy-sandbox:latest --name filipe-sbx ~/Personal/my-project
+```
 
-# A shell in the same sandbox instead
+### 3. First-Time Google OAuth Login
+On your very first run (before credentials are saved on your host):
+1. Antigravity (`agy`) will prompt with `/logout` due to missing credentials. Hit Enter (or type `/logout`) to open the login menu.
+2. Select **`1. Google OAuth`**.
+3. Open the provided Google URL in your host browser, sign in, and grant permissions.
+4. Copy the authorization code shown in your browser, paste it into the terminal prompt, and press Enter.
+5. Docker Sandboxes saves the token in your **host credential store** — all future sandboxes boot pre-authenticated!
+
+---
+
+## Workspace Modes & Git Workflows
+
+When working with a Git repository, Docker Sandboxes supports two modes ([docs](https://docs.docker.com/ai/sandboxes/usage/#git-workspace-modes)):
+
+- **Direct Mode (Default)**: The agent edits your host files directly. Changes appear immediately in your host working tree:
+  ```bash
+  sbx run ghcr.io/filipenas/agy-sandbox:latest --name filipe-sbx ~/Personal/my-project
+  ```
+- **Clone Mode (`--clone`)**: The agent works on an isolated in-container Git clone (triggered with `.` inside any local Git repository, or by passing a remote Git URL). Your host repo stays untouched:
+  ```bash
+  # Clone from a local git repository:
+  sbx run --clone ghcr.io/filipenas/agy-sandbox:latest --name filipe-sbx .
+
+  # Or clone directly from a remote Git URL:
+  sbx run --clone ghcr.io/filipenas/agy-sandbox:latest --name filipe-sbx https://github.com/owner/repo.git
+  ```
+
+### Multiple Workspaces
+The first directory is the primary workspace where the agent starts. Extra paths can be mounted read-only with `:ro` ([docs](https://docs.docker.com/ai/sandboxes/usage/#multiple-workspaces)):
+```bash
+sbx run ghcr.io/filipenas/agy-sandbox:latest ~/project-a ~/shared-libs ~/docs:ro
+```
+
+---
+
+## Everyday Sandbox Management
+
+```bash
+# List running sandboxes
+sbx ls
+
+# Open an interactive Bash shell
 sbx exec -it filipe-sbx bash -l
 
-# Smoke test
-sbx exec filipe-sbx -- sh -lc 'agy --help < /dev/null'
+# Run a single command non-interactively
+sbx exec filipe-sbx -- agy --help
 
-# Manage
-sbx ls
+# Stop and remove a sandbox
 sbx stop filipe-sbx
 sbx rm filipe-sbx
 ```
 
-By default the workspace is bind-mounted, so the agent edits your real files.
-With `--clone` the host dir (must be a repo) is copied and the agent works on a clone:
+---
+
+## Local Development (Building & Testing from Source)
+
+### Fast Local Dev from Any Directory
+To test changes to `agy-sandbox` quickly against another directory without publishing:
 
 ```bash
-sbx run --clone ghcr.io/filipenas/local-agent-sandbox-kit:latest \
-  --name filipe-sbx ~/code/app
+# From inside the directory you want the agent to work on:
+sbx run ../agy-sandbox --name filipe-sbx .
 ```
+`sbx` will automatically build the kit locally from source (`agy-sandbox.yaml` and `agy-sandbox.dockerfile`).
 
-### From a local checkout (developing & testing the kit)
-
-In v3, `sbx` directly builds and runs local kits from source using your local `local-agent-sandbox.dockerfile` and `local-agent-sandbox.yaml` descriptor without requiring a remote registry:
+### Inspecting BuildKit Logs
+When running a local kit, Docker Buildx builds the image in the background. If you need to inspect build output or diagnose errors:
 
 ```bash
-# Using the run.sh script:
-./run.sh
+# 1. List recent Buildx builds
+docker buildx history ls
 
-# Or directly with sbx run:
-sbx run . --name filipe-sbx .
+# 2. View full logs of a specific build ID
+docker buildx history logs <build-id>
 ```
 
-## CI
-
-- **build-and-push** — push to `main`, nightly, or manual → rebuilds `:latest` v3 kit image.
-- **release** — manual, from `main` → builds `:<date>.<n>` + `:latest` and creates the GitHub Release.
-- **\_build** — the shared build both call (single source of truth).
-
-## Build locally
-
-Build the v3 kit image using Docker Buildx (which validates the descriptor and embeds it into the OCI image):
+### Building the Kit Image with Docker Buildx
+To build the OCI kit image manually:
 
 ```bash
-# Build locally:
-docker buildx build -f local-agent-sandbox.yaml -t ghcr.io/filipenas/local-agent-sandbox:latest .
+# Build locally
+docker buildx build -f agy-sandbox.yaml -t ghcr.io/filipenas/agy-sandbox:latest .
 
-# Or build and push to GHCR:
-docker buildx build -f local-agent-sandbox.yaml -t ghcr.io/filipenas/local-agent-sandbox:latest --push .
+# Build and push directly to GHCR
+docker buildx build -f agy-sandbox.yaml -t ghcr.io/filipenas/agy-sandbox:latest --push .
 ```
 
-## Debug
+---
 
-Tail the sandbox daemon log:
+## References & Credits
 
-```bash
-# macOS
-SBX=~/Library/Application\ Support/com.docker.sandboxes/sandboxes/sandboxd
-grep -iE 'error|panic|failed|kit' "$SBX/daemon.log" | tail -40
-
-# Inspect sandbox network proxy log
-sbx policy log filipe-sbx
-```
-
-## Notes
-
-- First push makes the GHCR package **private** — make it public so sandboxes can pull it.
-- To log out inside the sandbox, run `/logout` at the `agy` prompt.
+- [Docker Sandbox Kit Specification](https://github.com/docker/sandbox-kit-spec)
+- [Docker Sandboxes Official Documentation](https://docs.docker.com/ai/sandboxes/)
+- [Docker Sandboxes Installation Guide](https://docs.docker.com/ai/sandboxes/install/)
+- [Docker Sandboxes Git Workspace Modes](https://docs.docker.com/ai/sandboxes/usage/#git-workspace-modes)
+- [Docker Sandboxes Multiple Workspaces](https://docs.docker.com/ai/sandboxes/usage/#multiple-workspaces)
+- [Google Antigravity CLI Getting Started](https://antigravity.google/docs/getting-started)
+- Inspired by [shelajev/agy-sbx-kit](https://github.com/shelajev/agy-sbx-kit)
