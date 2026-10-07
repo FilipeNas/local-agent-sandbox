@@ -58,12 +58,15 @@ If pulling the pre-built kit from GHCR:
 # Log in via GitHub CLI
 gh auth login --scopes "read:packages"
 
-# Allow sbx to pull kits from GHCR
+# Allow sbx to pull kits from GHCR (Docker and sbx needed)
 gh auth token | docker login ghcr.io -u <your-github-username> --password-stdin
 gh auth token | sbx secret set --registry ghcr.io --username <your-github-username> --password-stdin
 
 # Allow kits from GHCR
 sbx settings set kit.allowedSources '["docker.io/","ghcr.io/filipenas/"]'
+
+# Set allow all policy for the sandboxes
+sbx policy init allow-all
 ```
 
 ### 2. Run a Sandbox
@@ -105,6 +108,26 @@ The first directory is the primary workspace where the agent starts. Extra paths
 ```bash
 sbx run ghcr.io/filipenas/agy-sandbox:latest ~/project-a ~/shared-libs ~/docs:ro
 ```
+
+### Mountless Mode (No Host Folder)
+If you omit the workspace path when creating or running a sandbox, no host directory is mounted. The agent operates entirely within the container's isolated filesystem at `WORKDIR` (`/home/agent/workspace`):
+```bash
+sbx run ghcr.io/filipenas/agy-sandbox:latest --name isolated-sbx
+```
+
+> [!NOTE]
+> **Can you mount a host directory after creation?**  
+> No — workspace mounts are **fixed at creation time** in the microVM. To work with host files, either:
+> 1. Specify the path at create time (and attach later):
+>    ```bash
+>    sbx create --name my-sbx ghcr.io/filipenas/agy-sandbox:latest ~/Personal/my-project
+>    sbx run --name my-sbx   # attaches to the pre-mounted sandbox
+>    ```
+> 2. Copy files in and out using `sbx cp`:
+>    ```bash
+>    sbx cp ~/my-file isolated-sbx:/home/agent/workspace/
+>    ```
+> 3. Or remove and recreate the sandbox with the new path (`sbx rm <name>`).
 
 ---
 

@@ -5,6 +5,7 @@ You are operating inside an isolated Docker Sandbox microVM (Ubuntu 26.04) runni
 ### Workspace Modes
 - **Direct Mode**: The workspace is a bind mount of the developer's host directory. Edits and deletions modify the actual files on the host machine in real time.
 - **Clone Mode (`--clone`)**: The workspace is an in-container Git clone. Any changes stay inside this clone until fetched or pushed. The original host repository is mounted read-only at `/run/sandbox/source`.
+- **Mountless Mode**: If no host path was supplied at creation time, the agent operates entirely within the container's isolated filesystem at `/home/agent/workspace`.
 - Everything outside mounted workspace paths is VM-local and ephemeral (destroyed when the sandbox is removed).
 
 ### Network & Connectivity

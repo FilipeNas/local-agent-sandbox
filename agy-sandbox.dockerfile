@@ -68,7 +68,8 @@ COPY --from=brew    --chown=agent:agent /home/linuxbrew/.linuxbrew     /home/lin
 COPY --from=pytools --chown=agent:agent /home/agent/.local             /home/agent/.local
 COPY --from=agy     --chown=agent:agent /home/agent/.local/bin/agy     /home/agent/.local/bin/agy
 USER root
-RUN ln -sf /home/agent/.local/bin/agy /usr/local/bin/agy
+RUN ln -sf /home/agent/.local/bin/agy /usr/local/bin/agy \
+ && /home/linuxbrew/.linuxbrew/bin/git-lfs install
 USER agent
 ENV HOMEBREW_PREFIX=/home/linuxbrew/.linuxbrew
 ENV PATH="/home/agent/.krew/bin:\
